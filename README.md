@@ -44,7 +44,7 @@ When I'm subscribed to messages, let's publish one using method `SendMessage` wh
 `
 
 So it just creates object called `Message` and puts into it some useful information. If you wander what is `Message` class take a look into a project
-added to this solution colled `RabbitMqChat.Contracts`. It contains three classes called `Joined`, `Leaved`, `Message` which accordingly will be sent from
+added to this solution called `RabbitMqChat.Contracts`. It contains three classes called `Joined`, `Leaved`, `Message` which accordingly will be sent from
 publisher and received by subscribers when user will join or leave a chat or will write text message. Just simply like that we have chat!
 
 ## How it works inside of RabbitMQ?
@@ -58,14 +58,22 @@ which is named by class name and is responsible to send a message to each subscr
 
 It's easy to see a pattern in naming, that's `<namespace>_<class>:<assemply name>`.
 
-From other side there are subscriber queues which are named by pattern `<namespace>_<class>:<assembly name>_<subscription id>`. Here susbscription id is unique application
-identificator. If it will not be used so then all application would subscribe to single queue and just one application would get message. In this case as susbscription id
+From other side there are subscriber queues which are named by pattern `<namespace>_<class>:<assembly name>_<subscription id>`. Here subscription id is unique application
+identificator. If it will not be used so then all application would subscribe to single queue and just one application would get message. In this case as subscription id
 I have used nick name and so queues are separated. And probably you understood already that if you will open two consoles with same nickname you will get single message
 only in one console. So, if will start chat with nick name John, then three queues will be created (one queue per subscription id, per class):
 
 * RabbitMqChat_Contracts_Joined:RabbitMqChat_Contracts_John
 * RabbitMqChat_Contracts_Leaved:RabbitMqChat_Contracts_John
 * RabbitMqChat_Contracts_Message:RabbitMqChat_Contracts_John
+
+Below is diagram visualising what happens when John publishes message:
+
+![pub/sub](https://raw.github.com/gediminasgu/RabbitMqChat/master/pubsub.png)
+
+Note: as John is also subscribed to the same Exchange, he will also will receive his own messages. It could be easily solved just filtering messages if its author is the same user.
+
+## Message persistence
 
 As you probably know, RabbitMQ store messages in queue once queue is created even no one listening to it. So try to open two chat consoles with different nicknames,
 enter some message, then exit from one console, from another enter more message and connect to chat with first console again. You will get all the messages which
