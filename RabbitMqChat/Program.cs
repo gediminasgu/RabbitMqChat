@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using EasyNetQ;
 using RabbitMqChat.Contracts;
@@ -21,6 +22,7 @@ namespace RabbitMqChat
                 SendJoinedMessage(user);
                 Console.WriteLine("You will be joined to chat soon. If you will want to leave just enter message 'exit'");
                 SubscribeToMessages(user);
+                SubscribeToCommand(user);
                 while (true)
                 {
                     Console.Write("> ");
@@ -31,8 +33,14 @@ namespace RabbitMqChat
                         SendExitMessage(user);
                         break;
                     }
-
-                    SendMessage(_bus, user, msg);
+                    else if (msg.StartsWith(":pub"))
+                        PublishManyMessages(user);
+                    else if (msg.StartsWith(":cmd"))
+                        SendCommand(user);
+                    else
+                    {
+                        SendMessage(_bus, user, msg);
+                    }
                 }
             }
         }
@@ -41,7 +49,12 @@ namespace RabbitMqChat
         {
             _bus.Subscribe<Joined>(user, msg => Console.WriteLine("User {0} joined at {1}", msg.User, msg.JoinedOn));
             _bus.Subscribe<Leaved>(user, msg => Console.WriteLine("User {0} left at {1}", msg.User, msg.LeftOn));
-            _bus.Subscribe<Message>(user, msg => Console.WriteLine("[{2}] {0}> {1}", msg.User, msg.Text, msg.PostedOn.ToString("yyyy-MM-dd HH:mm:ss")));
+            _bus.Subscribe<Message>(user, msg =>
+                {
+                    Console.WriteLine("[{3}][{2}] {0}> {1}", msg.User, msg.Text, msg.PostedOn.ToString("yyyy-MM-dd HH:mm:ss"), Thread.CurrentThread.ManagedThreadId);
+                    if (msg.Text.StartsWith(":delay"))
+                        Thread.Sleep(1000);
+                });
         }
 
         private static string Ask(string prompt)
@@ -77,6 +90,33 @@ namespace RabbitMqChat
             {
                 publishChannel.Publish(new Message {PostedOn = DateTime.Now, User = user, Text = msg});
             }
+        }
+
+        private static void PublishManyMessages(string user)
+        {
+            for (var a = 0; a < 100; a++)
+                SendMessage(_bus, user, ":delay Sample message " + a);
+        }
+
+        private static void SendCommand(string user)
+        {
+            using (var channel = _bus.OpenPublishChannel())
+            {
+                Console.WriteLine("Randomly asking for nickname");
+                channel.Request(new SampleRequest() { Text = "What is your name?", User = user },
+                    (SampleResponse response) => Console.WriteLine("Responded to command: {0}", response.Responder));
+            }
+        }
+
+        private static void SubscribeToCommand(string user)
+        {
+            _bus.Respond<SampleRequest, SampleResponse>(request =>
+                {
+                    Console.WriteLine("Got request '{1}' from {0}. Sleeping before response...", request.User, request.Text);
+                    Thread.Sleep(1000);
+                    Console.WriteLine("Responding.");
+                    return new SampleResponse() {Responder = user};
+                });
         }
     }
 
